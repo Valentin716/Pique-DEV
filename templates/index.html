@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA - Ruta de Ciudades</title>
+    <style>
+        :root { --primary: #6366f1; --success: #22c55e; --bg: #020617; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        
+        .header-section { text-align: center; margin-bottom: 30px; }
+        .menu { width: 100%; max-width: 350px; margin-bottom: 20px; }
+        select { width: 100%; padding: 15px; border-radius: 12px; background: #1e293b; color: white; border: 1px solid var(--primary); font-size: 1rem; }
+        
+        .visualizer { width: 100%; max-width: 400px; background: #1e293b; padding: 30px; border-radius: 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 25px; }
+        .city-badge { font-size: 1.8rem; font-weight: 800; color: var(--primary); margin: 15px 0; display: block; }
+        .cost-label { font-size: 1rem; color: #94a3b8; }
+        
+        .btn { background: var(--success); color: white; border: none; padding: 20px; font-size: 1.2rem; font-weight: bold; border-radius: 15px; cursor: pointer; width: 100%; max-width: 350px; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); }
+        
+        #log { margin-top: 20px; font-size: 0.85rem; color: #64748b; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="header-section">
+        <h2>Ruta: Jiloyork ➔ Monterrey</h2>
+    </div>
+
+    <div class="menu">
+        <select id="algoritmo">
+            <option value="bfs">Búsqueda en Amplitud (BFS)</option>
+            <option value="dfs">Búsqueda en Profundidad (DFS)</option>
+            <option value="ucs">Costo Uniforme (UCS)</option>
+        </select>
+    </div>
+
+    <div class="visualizer">
+        <span class="cost-label" id="label-status">Ciudad Actual:</span>
+        <span class="city-badge" id="current-city">---</span>
+        <div class="cost-label">Costo acumulado: <b id="total-cost">0</b> km</div>
+    </div>
+
+    <button class="btn" onclick="iniciarViaje()">CALCULAR RUTA</button>
+    
+    <div id="log">Selecciona un algoritmo para comenzar</div>
+
+    <script>
+        async function iniciarViaje() {
+            const alg = document.getElementById('algoritmo').value;
+            const btn = document.querySelector('.btn');
+            btn.disabled = true;
+
+            await fetch(`/iniciar?algoritmo=${alg}`);
+            
+            let viajando = true;
+            while (viajando) {
+                const res = await fetch('/paso');
+                const data = await res.json();
+
+                if (data.status === "buscando" || data.status === "encontrado") {
+                    document.getElementById('current-city').innerText = data.actual;
+                    document.getElementById('total-cost').innerText = data.costo_acumulado || data.costo_total || 0;
+                    document.getElementById('log').innerText = `Explorando... Pendientes: ${data.pendientes?.join(', ') || 'Buscando'}`;
+                }
+
+                if (data.status === "encontrado") {
+                    document.getElementById('label-status').innerText = "¡DESTINO ALCANZADO!";
+                    document.getElementById('current-city').style.color = "#22c55e";
+                    viajando = false;
+                    btn.disabled = false;
+                }
+                
+                if (data.status === "finalizado") {
+                    document.getElementById('log').innerText = "No se encontró ruta disponible.";
+                    viajando = false;
+                    btn.disabled = false;
+                }
+                
+                await new Promise(r => setTimeout(r, 800)); // Animación un poco más lenta para ciudades
+            }
+        }
+    </script>
+</body>
+</html>
