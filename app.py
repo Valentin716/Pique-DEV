@@ -1,10 +1,8 @@
 from flask import Flask, render_template, jsonify, request
-from arbol import Nodo # Asegúrate de que arbol.py soporte datos tipo string
+from arbol import Nodo 
 
 app = Flask(__name__)
 
-# --- MAPA DE CIUDADES (GRAFO) ---
-# Formato: 'Ciudad': [('Destino', Costo), ...]
 GRAFO = {
     'Jiloyork': [('CDMX', 100), ('Toluca', 60)],
     'CDMX': [('Monterrey', 851), ('Puebla', 130)],
@@ -14,68 +12,60 @@ GRAFO = {
     'Monterrey': []
 }
 
-proceso = {
-    'frontera': [],
-    'visitados': [],
-    'objetivo': 'Monterrey',
-    'algoritmo': 'bfs'
-}
+# Diccionario para guardar el estado de las 3 búsquedas
+procesos = {}
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/iniciar')
-def iniciar():
-    alg = request.args.get('algoritmo', 'bfs')
-    proceso['algoritmo'] = alg
-    proceso['visitados'] = []
-    
-    nodo_inicial = Nodo('Jiloyork')
-    nodo_inicial.set_costo(0)
-    proceso['frontera'] = [nodo_inicial]
+@app.route('/iniciar_todas')
+def iniciar_todas():
+    # Inicializamos los 3 algoritmos a la vez
+    for alg in ['bfs', 'dfs', 'ucs']:
+        nodo_ini = Nodo('Jiloyork')
+        nodo_ini.set_costo(0)
+        procesos[alg] = {
+            'frontera': [nodo_ini],
+            'visitados': [],
+            'terminado': False,
+            'actual': 'Jiloyork',
+            'costo': 0
+        }
     return jsonify({"status": "ready"})
 
-@app.route('/paso')
-def paso():
-    if not proceso['frontera']:
+@app.route('/paso_comparativo')
+def paso_comparativo():
+    alg = request.args.get('alg', 'bfs')
+    p = procesos.get(alg)
+
+    if not p or not p['frontera'] or p['terminado']:
         return jsonify({"status": "finalizado"})
 
-    # Selección de lógica según algoritmo
-    if proceso['algoritmo'] == 'bfs':
-        nodo_actual = proceso['frontera'].pop(0) # FIFO
-    elif proceso['algoritmo'] == 'dfs':
-        nodo_actual = proceso['frontera'].pop()    # LIFO
-    elif proceso['algoritmo'] == 'ucs':
-        proceso['frontera'].sort(key=lambda x: x.get_costo())
-        nodo_actual = proceso['frontera'].pop(0) # Menor costo
+    # Lógica de extracción según algoritmo
+    if alg == 'bfs': nodo_actual = p['frontera'].pop(0)
+    elif alg == 'dfs': nodo_actual = p['frontera'].pop()
+    else: # ucs
+        p['frontera'].sort(key=lambda x: x.get_costo())
+        nodo_actual = p['frontera'].pop(0)
 
-    ciudad_actual = nodo_actual.get_datos()
-    proceso['visitados'].append(ciudad_actual)
+    ciudad = nodo_actual.get_datos()
+    p['visitados'].append(ciudad)
+    p['actual'] = ciudad
+    p['costo'] = nodo_actual.get_costo()
 
-    if ciudad_actual == proceso['objetivo']:
-        return jsonify({
-            "status": "encontrado", 
-            "actual": ciudad_actual, 
-            "costo_total": nodo_actual.get_costo()
-        })
+    if ciudad == 'Monterrey':
+        p['terminado'] = True
+        return jsonify({"status": "encontrado", "ciudad": ciudad, "costo": p['costo']})
 
-    # Expandir vecinos desde el Grafo
-    for vecino, costo_tramo in GRAFO.get(ciudad_actual, []):
+    for vecino, costo in GRAFO.get(ciudad, []):
         hijo = Nodo(vecino)
         hijo.set_padre(nodo_actual)
-        hijo.set_costo(nodo_actual.get_costo() + costo_tramo)
-        
-        if hijo.get_datos() not in proceso['visitados']:
-            if not hijo.en_lista(proceso['frontera']):
-                proceso['frontera'].append(hijo)
+        hijo.set_costo(p['costo'] + costo)
+        if hijo.get_datos() not in p['visitados']:
+            p['frontera'].append(hijo)
 
-    return jsonify({
-        "status": "buscando",
-        "actual": ciudad_actual,
-        "costo_acumulado": nodo_actual.get_costo(),
-        "pendientes": [n.get_datos() for n in proceso['frontera']]
-    })
+    return jsonify({"status": "buscando", "ciudad": ciudad, "costo": p['costo']})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

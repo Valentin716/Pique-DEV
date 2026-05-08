@@ -3,83 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IA - Ruta de Ciudades</title>
+    <title>IA - Comparativa Triple</title>
     <style>
-        :root { --primary: #6366f1; --success: #22c55e; --bg: #020617; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        :root { --bfs: #3b82f6; --dfs: #10b981; --ucs: #f59e0b; --bg: #0f172a; }
+        body { font-family: sans-serif; background: var(--bg); color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         
-        .header-section { text-align: center; margin-bottom: 30px; }
-        .menu { width: 100%; max-width: 350px; margin-bottom: 20px; }
-        select { width: 100%; padding: 15px; border-radius: 12px; background: #1e293b; color: white; border: 1px solid var(--primary); font-size: 1rem; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; width: 100%; max-width: 1100px; margin-top: 20px; }
         
-        .visualizer { width: 100%; max-width: 400px; background: #1e293b; padding: 30px; border-radius: 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 25px; }
-        .city-badge { font-size: 1.8rem; font-weight: 800; color: var(--primary); margin: 15px 0; display: block; }
-        .cost-label { font-size: 1rem; color: #94a3b8; }
+        .card { background: #1e293b; padding: 20px; border-radius: 15px; text-align: center; border-top: 5px solid white; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+        .card.bfs { border-color: var(--bfs); }
+        .card.dfs { border-color: var(--dfs); }
+        .card.ucs { border-color: var(--ucs); }
+
+        .city-name { font-size: 1.5rem; font-weight: bold; margin: 15px 0; color: #f1f5f9; min-height: 40px; }
+        .stats { font-size: 0.9rem; color: #94a3b8; }
         
-        .btn { background: var(--success); color: white; border: none; padding: 20px; font-size: 1.2rem; font-weight: bold; border-radius: 15px; cursor: pointer; width: 100%; max-width: 350px; transition: 0.2s; }
-        .btn:active { transform: scale(0.98); }
-        
-        #log { margin-top: 20px; font-size: 0.85rem; color: #64748b; text-align: center; }
+        .btn { background: #6366f1; color: white; border: none; padding: 20px 50px; font-size: 1.2rem; font-weight: bold; border-radius: 50px; cursor: pointer; margin-bottom: 20px; width: 100%; max-width: 400px; }
+        .btn:disabled { opacity: 0.5; }
     </style>
 </head>
 <body>
 
-    <div class="header-section">
-        <h2>Ruta: Jiloyork ➔ Monterrey</h2>
-    </div>
-
-    <div class="menu">
-        <select id="algoritmo">
-            <option value="bfs">Búsqueda en Amplitud (BFS)</option>
-            <option value="dfs">Búsqueda en Profundidad (DFS)</option>
-            <option value="ucs">Costo Uniforme (UCS)</option>
-        </select>
-    </div>
-
-    <div class="visualizer">
-        <span class="cost-label" id="label-status">Ciudad Actual:</span>
-        <span class="city-badge" id="current-city">---</span>
-        <div class="cost-label">Costo acumulado: <b id="total-cost">0</b> km</div>
-    </div>
-
-    <button class="btn" onclick="iniciarViaje()">CALCULAR RUTA</button>
+    <h2>Comparativa de Búsquedas: Jiloyork ➔ Monterrey</h2>
     
-    <div id="log">Selecciona un algoritmo para comenzar</div>
+    <button class="btn" onclick="iniciarComparativa()">CALCULAR TODAS LAS RUTAS</button>
+
+    <div class="grid-container">
+        <div class="card bfs">
+            <div style="color: var(--bfs); font-weight: bold;">AMPLITUD (BFS)</div>
+            <div class="city-name" id="city-bfs">---</div>
+            <div class="stats">Costo: <span id="cost-bfs">0</span> km</div>
+        </div>
+
+        <div class="card dfs">
+            <div style="color: var(--dfs); font-weight: bold;">PROFUNDIDAD (DFS)</div>
+            <div class="city-name" id="city-dfs">---</div>
+            <div class="stats">Costo: <span id="cost-dfs">0</span> km</div>
+        </div>
+
+        <div class="card ucs">
+            <div style="color: var(--ucs); font-weight: bold;">COSTO UNIFORME (UCS)</div>
+            <div class="city-name" id="city-ucs">---</div>
+            <div class="stats">Costo: <span id="cost-ucs">0</span> km</div>
+        </div>
+    </div>
 
     <script>
-        async function iniciarViaje() {
-            const alg = document.getElementById('algoritmo').value;
-            const btn = document.querySelector('.btn');
-            btn.disabled = true;
-
-            await fetch(`/iniciar?algoritmo=${alg}`);
-            
-            let viajando = true;
-            while (viajando) {
-                const res = await fetch('/paso');
+        async function correrAlgoritmo(alg) {
+            let finalizado = false;
+            while (!finalizado) {
+                const res = await fetch(`/paso_comparativo?alg=${alg}`);
                 const data = await res.json();
-
+                
                 if (data.status === "buscando" || data.status === "encontrado") {
-                    document.getElementById('current-city').innerText = data.actual;
-                    document.getElementById('total-cost').innerText = data.costo_acumulado || data.costo_total || 0;
-                    document.getElementById('log').innerText = `Explorando... Pendientes: ${data.pendientes?.join(', ') || 'Buscando'}`;
+                    document.getElementById(`city-${alg}`).innerText = data.ciudad;
+                    document.getElementById(`cost-${alg}`).innerText = data.costo;
                 }
-
+                
                 if (data.status === "encontrado") {
-                    document.getElementById('label-status').innerText = "¡DESTINO ALCANZADO!";
-                    document.getElementById('current-city').style.color = "#22c55e";
-                    viajando = false;
-                    btn.disabled = false;
+                    document.getElementById(`city-${alg}`).style.color = "#22c55e";
+                    finalizado = true;
                 }
-                
-                if (data.status === "finalizado") {
-                    document.getElementById('log').innerText = "No se encontró ruta disponible.";
-                    viajando = false;
-                    btn.disabled = false;
-                }
-                
-                await new Promise(r => setTimeout(r, 800)); // Animación un poco más lenta para ciudades
+                if (data.status === "finalizado") finalizado = true;
+
+                await new Promise(r => setTimeout(r, 600)); // Velocidad de la animación
             }
+        }
+
+        async function iniciarComparativa() {
+            document.querySelector('.btn').disabled = true;
+            await fetch('/iniciar_todas');
+            
+            // Ejecutamos las 3 búsquedas en paralelo
+            Promise.all([
+                correrAlgoritmo('bfs'),
+                correrAlgoritmo('dfs'),
+                correrAlgoritmo('ucs')
+            ]).then(() => {
+                document.querySelector('.btn').disabled = false;
+            });
         }
     </script>
 </body>
